@@ -79,6 +79,8 @@ def arpabet_to_tamil(phones):
         if base in TA_VOWEL and pending is None and out and out[-1] == "வு":
             out[-1] = ""  # "power": பவு + அர் -> பவர்
             pending = "வ"
+        if base in TA_VOWEL and pending is None and out and out[-1] in ("ர்", "ய்"):
+            pending = out.pop()[0]  # "courage": கெர் + அஜ் -> கெரஜ், "boyish" -> பாயிஷ்
         if base in TA_VOWEL and pending is None and last_vowel:
             # two vowels in a row: Tamil writes a glide between them (ஸீ-யே-ஷன், கோ-வா)
             pending = "ய" if last_vowel in ("IY", "IH", "EY", "AY", "EH", "AE", "OY") else "வ"

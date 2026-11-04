@@ -26,7 +26,7 @@ import type { Entry } from "./src/types";
 import { colors, common } from "./src/theme";
 
 // Bump the file name whenever assets/dict.db is rebuilt, so phones copy the new version.
-const DICT_DB = "dict-v1.db";
+const DICT_DB = "dict-v2.db";
 
 export default function App() {
   return (
