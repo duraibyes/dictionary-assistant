@@ -22,6 +22,9 @@ data-build/  Script that builds app/assets/dict.db from open dictionary data
 Offline extras: Tamil → English word search, word-by-word meaning for sentences, voice input (needs the
 phone's offline speech pack), text-to-speech.
 
+Voice input keeps listening through pauses until you tap ■, only fills the text box, and nothing is sent
+until you tap 🔍 (dictionary) or ➤ (teacher). Logic: `app/src/useVoice.ts`.
+
 ## English Teacher tab
 
 Talk or type in English (or Tamil, or Tamil in English letters). Each message comes back with the
