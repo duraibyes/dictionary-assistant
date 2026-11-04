@@ -13,13 +13,13 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dictionary-assistant.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://dictionary-ivory-one.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dictionary-assistant.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://dictionary-ivory-one.vercel.app"
       }
     }
   },
