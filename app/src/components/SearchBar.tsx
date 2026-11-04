@@ -13,12 +13,17 @@ interface Props {
 
 export function SearchBar({ value, onChange, onSubmit, busy, online }: Props) {
   const [lang, setLang] = useState<VoiceLang>("en-US");
-  const voice = useVoice({ online, onPartial: onChange, onFinal: onSubmit });
+  // Speech only fills the box; the search runs when the user taps 🔍 or the keyboard's search key.
+  const voice = useVoice({ online, onText: onChange });
 
   function toggleMic() {
     if (voice.listening) return voice.stop();
-    onChange("");
-    voice.start(lang);
+    voice.start(lang, value);
+  }
+
+  function submit() {
+    if (voice.listening) voice.cancel();
+    if (value.trim()) onSubmit(value);
   }
 
   return (
@@ -28,26 +33,35 @@ export function SearchBar({ value, onChange, onSubmit, busy, online }: Props) {
           style={styles.input}
           value={value}
           onChangeText={onChange}
-          onSubmitEditing={() => value.trim() && onSubmit(value)}
-          placeholder={voice.listening ? "Listening…" : "Type a word, sentence, or தமிழ்"}
+          onSubmitEditing={submit}
+          placeholder={voice.listening ? "Listening… ■ அழுத்தி நிறுத்துங்கள்" : "Type a word, sentence, or தமிழ்"}
           placeholderTextColor={colors.muted}
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
           clearButtonMode="while-editing"
         />
+        <Pressable
+          onPress={toggleMic}
+          style={[styles.mic, voice.listening && styles.micOn]}
+          accessibilityLabel={voice.listening ? "Stop listening" : "Speak"}
+        >
+          <Text style={styles.micIcon}>{voice.listening ? "■" : "🎤"}</Text>
+        </Pressable>
         {busy ? (
           <ActivityIndicator style={styles.spinner} color={colors.primary} />
         ) : (
           <Pressable
-            onPress={toggleMic}
-            style={[styles.mic, voice.listening && styles.micOn]}
-            accessibilityLabel={voice.listening ? "Stop listening" : "Speak"}
+            onPress={submit}
+            disabled={!value.trim()}
+            style={[styles.go, !value.trim() && styles.goOff]}
+            accessibilityLabel="Search"
           >
-            <Text style={styles.micIcon}>{voice.listening ? "■" : "🎤"}</Text>
+            <Text style={styles.goIcon}>🔍</Text>
           </Pressable>
         )}
       </View>
+      {voice.listening && <Text style={styles.hint}>● பேசி முடித்ததும் ■ அழுத்துங்கள், பிறகு 🔍</Text>}
       <LangPicker lang={lang} onChange={setLang} />
     </View>
   );
@@ -77,8 +91,20 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 6,
   },
-  input: { flex: 1, fontSize: 18, paddingVertical: 14, color: colors.ink },
-  spinner: { width: 46, height: 46 },
+  input: { flex: 1, fontSize: 18, paddingVertical: 14, color: colors.ink, minWidth: 0 },
+  spinner: { width: 42, height: 42 },
+  go: {
+    width: 42,
+    height: 42,
+    marginLeft: 6,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  goOff: { opacity: 0.35 },
+  goIcon: { fontSize: 17 },
+  hint: { color: colors.accent, fontSize: 13, fontWeight: "600", marginTop: 8 },
   mic: {
     width: 46,
     height: 46,

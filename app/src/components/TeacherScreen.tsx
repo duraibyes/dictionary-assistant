@@ -60,7 +60,8 @@ export function TeacherScreen({ settings, online }: Props) {
   const [loaded, setLoaded] = useState(false);
   const scroll = useRef<ScrollViewInstance>(null);
 
-  const voice = useVoice({ online, onPartial: setText, onFinal: (t) => send(t) });
+  // Speech only fills the box; the message goes when the user taps ➤.
+  const voice = useVoice({ online, onText: setText });
 
   useEffect(() => {
     getJson<Saved>(STORE_KEY, { topic: "", items: [] }).then((s) => {
@@ -95,6 +96,7 @@ export function TeacherScreen({ settings, online }: Props) {
   }
 
   function send(raw: string) {
+    if (voice.listening) voice.cancel();
     const t = raw.trim();
     if (!t || busy) return;
     if (!online) {
@@ -217,14 +219,14 @@ export function TeacherScreen({ settings, online }: Props) {
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder={voice.listening ? "Listening…" : "English-ல் பேசுங்கள் / type செய்யுங்கள்…"}
+            placeholder={voice.listening ? "Listening… ■ அழுத்தி நிறுத்துங்கள்" : "English-ல் பேசுங்கள் / type செய்யுங்கள்…"}
             placeholderTextColor={colors.muted}
             multiline
             autoCorrect={false}
           />
           <Pressable
             style={[styles.round, voice.listening && styles.roundOn]}
-            onPress={() => (voice.listening ? voice.stop() : (setText(""), voice.start(lang)))}
+            onPress={() => (voice.listening ? voice.stop() : voice.start(lang, text))}
             accessibilityLabel={voice.listening ? "Stop listening" : "Speak"}
           >
             <Text style={styles.roundIcon}>{voice.listening ? "■" : "🎤"}</Text>
@@ -238,6 +240,7 @@ export function TeacherScreen({ settings, online }: Props) {
             <Text style={styles.sendIcon}>➤</Text>
           </Pressable>
         </View>
+        {voice.listening && <Text style={styles.listenHint}>● கேட்கிறேன்… பேசி முடித்ததும் ■, சரிபார்த்து ➤ அழுத்துங்கள்</Text>}
         <LangPicker lang={lang} onChange={setLang} />
       </View>
     </View>
@@ -368,6 +371,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
     backgroundColor: colors.bg,
   },
+  listenHint: { color: colors.accent, fontSize: 13, fontWeight: "600", marginTop: 6 },
   offline: { color: colors.offline, fontSize: 13, textAlign: "center", marginBottom: 6 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   input: {
