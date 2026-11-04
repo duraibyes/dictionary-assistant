@@ -150,3 +150,38 @@ export async function ask(query: string, hint?: string): Promise<AskOutcome> {
   }
   throw new Error(errors.length ? `All providers failed — ${errors.join(" | ")}` : "No API keys configured");
 }
+
+export interface KeyTest {
+  provider: ProviderName;
+  model: string;
+  key: string; // last 4 characters only
+  ok: boolean;
+  ms: number;
+  detail: string;
+}
+
+/** Tries every key of every provider once with the same question (ignores cooldowns). */
+export async function testAllKeys(query: string): Promise<KeyTest[]> {
+  const jobs: Promise<KeyTest>[] = [];
+  for (const name of providerOrder()) {
+    const cfg = PROVIDERS[name];
+    const model = process.env[cfg.modelEnv] || cfg.defaultModel;
+    for (const key of splitKeys(process.env[cfg.keysEnv])) {
+      jobs.push(
+        (async () => {
+          const t = Date.now();
+          try {
+            const r = parseResult(await callProvider(name, key, model, query), query);
+            return { provider: name, model, key: "…" + key.slice(-4), ok: true, ms: Date.now() - t,
+              detail: `${r.meanings_ta.slice(0, 3).join(", ")} | ${r.pronunciation_ta}` };
+          } catch (err) {
+            const status = err instanceof ProviderError ? err.status : "error";
+            return { provider: name, model, key: "…" + key.slice(-4), ok: false, ms: Date.now() - t,
+              detail: `${status}: ${(err as Error).message.slice(0, 200)}` };
+          }
+        })(),
+      );
+    }
+  }
+  return Promise.all(jobs);
+}
