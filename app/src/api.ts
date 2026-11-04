@@ -39,6 +39,33 @@ export async function askAi(settings: Settings, query: string, hint?: string): P
   return data.result as AiResult;
 }
 
+export interface Mistake {
+  wrong: string;
+  right: string;
+  why_ta: string;
+}
+
+export interface TutorTurn {
+  corrected: string;
+  is_correct: boolean;
+  mistakes: Mistake[];
+  better_ways: string[];
+  meaning_ta: string;
+  reply: string;
+  reply_ta: string;
+  tip_ta: string;
+}
+
+export async function askTeacher(
+  settings: Settings,
+  history: { role: "user" | "teacher"; text: string }[],
+  topic?: string,
+): Promise<TutorTurn> {
+  const data = await call(settings, "/api/chat", { method: "POST", body: JSON.stringify({ history, topic }) }, 60_000);
+  if (!data?.turn) throw new ApiError("Empty answer from server");
+  return data.turn as TutorTurn;
+}
+
 /** Checks the address and the secret without using any AI credit. */
 export async function checkConnection(settings: Settings): Promise<string> {
   const data = await call(settings, "/api/ping", { method: "GET" }, 15_000);

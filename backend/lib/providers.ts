@@ -65,16 +65,28 @@ async function post(url: string, headers: Record<string, string>, body: unknown)
   return JSON.parse(text);
 }
 
-async function callProvider(name: ProviderName, key: string, model: string, query: string, hint?: string): Promise<string> {
-  const user = userPrompt(query, hint);
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Sends a system prompt + conversation to one provider with one key; returns the raw text reply. */
+async function callLLM(
+  name: ProviderName,
+  key: string,
+  model: string,
+  system: string,
+  messages: ChatMessage[],
+  maxTokens = 1500,
+): Promise<string> {
   switch (name) {
     case "gemini": {
       const data = await post(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
         { "x-goog-api-key": key },
         {
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: [{ text: user }] }],
+          systemInstruction: { parts: [{ text: system }] },
+          contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
           generationConfig: { responseMimeType: "application/json" },
         },
       );
@@ -84,7 +96,7 @@ async function callProvider(name: ProviderName, key: string, model: string, quer
       const data = await post(
         "https://api.anthropic.com/v1/messages",
         { "x-api-key": key, "anthropic-version": "2023-06-01" },
-        { model, max_tokens: 1500, system: SYSTEM_PROMPT, messages: [{ role: "user", content: user }] },
+        { model, max_tokens: maxTokens, system, messages },
       );
       return (data?.content ?? []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("");
     }
@@ -92,13 +104,7 @@ async function callProvider(name: ProviderName, key: string, model: string, quer
     case "openrouter": {
       const url =
         name === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://openrouter.ai/api/v1/chat/completions";
-      const body: Record<string, unknown> = {
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: user },
-        ],
-      };
+      const body: Record<string, unknown> = { model, messages: [{ role: "system", content: system }, ...messages] };
       // Not every free OpenRouter model supports JSON mode, so only force it for OpenAI.
       if (name === "openai") body.response_format = { type: "json_object" };
       const headers: Record<string, string> = { authorization: `Bearer ${key}` };
@@ -107,6 +113,10 @@ async function callProvider(name: ProviderName, key: string, model: string, quer
       return data?.choices?.[0]?.message?.content ?? "";
     }
   }
+}
+
+function callProvider(name: ProviderName, key: string, model: string, query: string, hint?: string): Promise<string> {
+  return callLLM(name, key, model, SYSTEM_PROMPT, [{ role: "user", content: userPrompt(query, hint) }]);
 }
 
 /** How long to skip a key after a failure, or 0 to just try the next key without parking it. */
@@ -126,7 +136,12 @@ export interface AskOutcome {
   model: string;
 }
 
-export async function ask(query: string, hint?: string): Promise<AskOutcome> {
+/** Runs one request through every provider/key in order until one returns something `parse` accepts. */
+export async function runWithFallback<T>(
+  system: string,
+  messages: ChatMessage[],
+  parse: (raw: string) => T,
+): Promise<{ value: T; provider: ProviderName; model: string }> {
   const errors: string[] = [];
   const now = Date.now();
   for (const name of providerOrder()) {
@@ -136,10 +151,9 @@ export async function ask(query: string, hint?: string): Promise<AskOutcome> {
       const id = `${name}:${key}`;
       if ((cooldown.get(id) ?? 0) > now) continue;
       try {
-        const raw = await callProvider(name, key, model, query, hint);
-        const result = parseResult(raw, query);
+        const value = parse(await callLLM(name, key, model, system, messages));
         cooldown.delete(id);
-        return { result, provider: name, model };
+        return { value, provider: name, model };
       } catch (err) {
         const wait = cooldownFor(err);
         if (wait) cooldown.set(id, Date.now() + wait);
@@ -149,6 +163,15 @@ export async function ask(query: string, hint?: string): Promise<AskOutcome> {
     }
   }
   throw new Error(errors.length ? `All providers failed — ${errors.join(" | ")}` : "No API keys configured");
+}
+
+export async function ask(query: string, hint?: string): Promise<AskOutcome> {
+  const { value, provider, model } = await runWithFallback(
+    SYSTEM_PROMPT,
+    [{ role: "user", content: userPrompt(query, hint) }],
+    (raw) => parseResult(raw, query),
+  );
+  return { result: value, provider, model };
 }
 
 export interface KeyTest {

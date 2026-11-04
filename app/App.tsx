@@ -17,6 +17,8 @@ import { SearchBar } from "./src/components/SearchBar";
 import { ResultView } from "./src/components/ResultView";
 import { OfflineBadge } from "./src/components/OfflineBadge";
 import { SettingsSheet } from "./src/components/SettingsSheet";
+import { TeacherScreen } from "./src/components/TeacherScreen";
+import * as Updates from "expo-updates";
 import { addHistory, getHistory } from "./src/dictionary";
 import { lookup } from "./src/lookup";
 import { defaults, loadSettings, saveSettings, type Settings } from "./src/settings";
@@ -66,6 +68,21 @@ function Main() {
   const [aiBusy, setAiBusy] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const requestId = useRef(0);
+  const [tab, setTab] = useState<"dict" | "teacher">("dict");
+  const [teacherOpened, setTeacherOpened] = useState(false);
+  const [updateReady, setUpdateReady] = useState(false);
+
+  // Over-the-air updates: download a newer version in the background and offer a restart.
+  useEffect(() => {
+    if (!Updates.isEnabled || __DEV__ || !online) return;
+    Updates.checkForUpdateAsync()
+      .then(async (r) => {
+        if (!r.isAvailable) return;
+        const f = await Updates.fetchUpdateAsync();
+        if (f.isNew) setUpdateReady(true);
+      })
+      .catch(() => {});
+  }, [online]);
 
   useEffect(() => {
     loadSettings().then((s) => {
@@ -125,6 +142,7 @@ function Main() {
         <View style={styles.header}>
           <Pressable
             onPress={() => {
+              setTab("dict");
               setEntry(null);
               setText("");
             }}
@@ -141,23 +159,57 @@ function Main() {
           </View>
         </View>
 
-        <View style={styles.searchWrap}>
-          <SearchBar value={text} onChange={setText} onSubmit={(t) => search(t)} busy={busy} online={online} />
+        <View style={styles.tabs}>
+          {(
+            [
+              ["dict", "📖 அகராதி"],
+              ["teacher", "👩‍🏫 English Teacher"],
+            ] as const
+          ).map(([key, label]) => (
+            <Pressable
+              key={key}
+              style={[styles.tab, tab === key && styles.tabOn]}
+              onPress={() => {
+                setTab(key);
+                if (key === "teacher") setTeacherOpened(true);
+              }}
+            >
+              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
+            </Pressable>
+          ))}
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {entry ? (
-            <ResultView
-              entry={entry}
-              online={online}
-              aiBusy={aiBusy}
-              onAskAi={() => search(entry.query, true)}
-              onSearch={(w) => search(w)}
-            />
-          ) : (
-            <Home history={history} onPick={(q) => search(q)} />
-          )}
-        </ScrollView>
+        {updateReady && (
+          <Pressable style={styles.update} onPress={() => Updates.reloadAsync()}>
+            <Text style={styles.updateText}>✨ புதிய update தயார் — Restart செய்ய இங்கே அழுத்துங்கள்</Text>
+          </Pressable>
+        )}
+
+        <View style={[{ flex: 1 }, tab !== "dict" && styles.hidden]}>
+          <View style={styles.searchWrap}>
+            <SearchBar value={text} onChange={setText} onSubmit={(t) => search(t)} busy={busy} online={online} />
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            {entry ? (
+              <ResultView
+                entry={entry}
+                online={online}
+                aiBusy={aiBusy}
+                onAskAi={() => search(entry.query, true)}
+                onSearch={(w) => search(w)}
+              />
+            ) : (
+              <Home history={history} onPick={(q) => search(q)} />
+            )}
+          </ScrollView>
+        </View>
+
+        {teacherOpened && (
+          <View style={[{ flex: 1 }, tab !== "teacher" && styles.hidden]}>
+            <TeacherScreen settings={settings} online={online} />
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       <SettingsSheet
@@ -231,6 +283,28 @@ const styles = StyleSheet.create({
   brandSub: { fontSize: 16, fontWeight: "600", color: colors.muted },
   gear: { fontSize: 22 },
   searchWrap: { paddingHorizontal: 16, paddingBottom: 12 },
+  tabs: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: colors.line,
+    borderRadius: 12,
+    padding: 3,
+  },
+  tab: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center" },
+  tabOn: { backgroundColor: colors.card },
+  tabText: { fontSize: 14, fontWeight: "600", color: colors.muted },
+  tabTextOn: { color: colors.primary, fontWeight: "800" },
+  hidden: { display: "none" },
+  update: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: colors.accentSoft,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  updateText: { color: colors.accent, fontWeight: "700", fontSize: 14, textAlign: "center" },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
   hello: { fontSize: 20, fontWeight: "800", color: colors.ink },
   helloSub: { fontSize: 15, color: colors.muted, marginTop: 6, lineHeight: 23 },

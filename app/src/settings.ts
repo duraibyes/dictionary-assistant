@@ -13,7 +13,7 @@ const KEY = "settings.v1";
 const DEVICE_KEY = "device.id";
 
 export const defaults: Settings = {
-  apiUrl: (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, ""),
+  apiUrl: (process.env.EXPO_PUBLIC_API_URL || "https://dictionary-ivory-one.vercel.app").replace(/\/+$/, ""),
   appSecret: process.env.EXPO_PUBLIC_APP_SECRET ?? "",
   autoAi: true,
 };

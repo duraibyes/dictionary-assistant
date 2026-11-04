@@ -1,0 +1,16 @@
+# Every push to main sends the new app code to installed phones as an over-the-air update
+# (phones built with the "preview" profile pick it up the next time the app is opened).
+# Changes that add a new native module still need a fresh build from expo.dev.
+name: Publish update
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  publish_update:
+    name: Publish update to preview
+    type: update
+    environment: preview
+    params:
+      channel: preview

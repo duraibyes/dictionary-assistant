@@ -107,6 +107,7 @@ async function cache(): Promise<SQLiteDatabase> {
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS ai_cache (key TEXT PRIMARY KEY NOT NULL, json TEXT NOT NULL, at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS history (query TEXT PRIMARY KEY NOT NULL, at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
   `);
   cacheDb = db;
   return db;
@@ -145,6 +146,18 @@ export async function getHistory(limit = 20): Promise<string[]> {
 export async function clearHistory(): Promise<void> {
   const db = await cache();
   await db.runAsync("DELETE FROM history");
+}
+
+/** Small JSON store (e.g. the current Teacher conversation). */
+export async function getJson<T>(key: string, fallback: T): Promise<T> {
+  const db = await cache();
+  const r = await db.getFirstAsync<{ value: string }>("SELECT value FROM kv WHERE key = ?", key);
+  return r ? parse<T>(r.value, fallback) : fallback;
+}
+
+export async function setJson(key: string, value: unknown): Promise<void> {
+  const db = await cache();
+  await db.runAsync("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", key, JSON.stringify(value));
 }
 
 export type { Example };

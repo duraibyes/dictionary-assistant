@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useVoice, type VoiceLang } from "../useVoice";
 import { colors } from "../theme";
 
 interface Props {
@@ -11,52 +11,14 @@ interface Props {
   online: boolean;
 }
 
-type Lang = "en-US" | "ta-IN";
-
 export function SearchBar({ value, onChange, onSubmit, busy, online }: Props) {
-  const [listening, setListening] = useState(false);
-  const [lang, setLang] = useState<Lang>("en-US");
+  const [lang, setLang] = useState<VoiceLang>("en-US");
+  const voice = useVoice({ online, onPartial: onChange, onFinal: onSubmit });
 
-  useSpeechRecognitionEvent("start", () => setListening(true));
-  useSpeechRecognitionEvent("end", () => setListening(false));
-  useSpeechRecognitionEvent("result", (ev) => {
-    const text = ev.results[0]?.transcript ?? "";
-    onChange(text);
-    if (ev.isFinal && text.trim()) onSubmit(text);
-  });
-  useSpeechRecognitionEvent("error", (ev) => {
-    setListening(false);
-    if (ev.error === "aborted" || ev.error === "no-speech") return;
-    if (ev.error === "language-not-supported" || ev.error === "service-not-allowed") {
-      Alert.alert(
-        "Voice not available",
-        online
-          ? "This phone cannot recognise this language. Try typing instead."
-          : "Offline voice needs the language pack. On Android: Settings → Google → Voice → Offline speech recognition → download English (and Tamil).",
-      );
-      return;
-    }
-    Alert.alert("Voice", ev.message || ev.error);
-  });
-
-  async function toggleMic() {
-    if (listening) {
-      ExpoSpeechRecognitionModule.stop();
-      return;
-    }
-    const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Microphone", "Please allow microphone and speech recognition in Settings.");
-      return;
-    }
+  function toggleMic() {
+    if (voice.listening) return voice.stop();
     onChange("");
-    ExpoSpeechRecognitionModule.start({
-      lang,
-      interimResults: true,
-      continuous: false,
-      // Without internet, ask for the phone's built-in (offline) recogniser.
-      requiresOnDeviceRecognition: !online && ExpoSpeechRecognitionModule.supportsOnDeviceRecognition(),
-    });
+    voice.start(lang);
   }
 
   return (
@@ -67,12 +29,11 @@ export function SearchBar({ value, onChange, onSubmit, busy, online }: Props) {
           value={value}
           onChangeText={onChange}
           onSubmitEditing={() => value.trim() && onSubmit(value)}
-          placeholder={listening ? "Listening…" : "Type a word, sentence, or தமிழ்"}
+          placeholder={voice.listening ? "Listening…" : "Type a word, sentence, or தமிழ்"}
           placeholderTextColor={colors.muted}
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
-          multiline={false}
           clearButtonMode="while-editing"
         />
         {busy ? (
@@ -80,21 +41,27 @@ export function SearchBar({ value, onChange, onSubmit, busy, online }: Props) {
         ) : (
           <Pressable
             onPress={toggleMic}
-            style={[styles.mic, listening && styles.micOn]}
-            accessibilityLabel={listening ? "Stop listening" : "Speak"}
+            style={[styles.mic, voice.listening && styles.micOn]}
+            accessibilityLabel={voice.listening ? "Stop listening" : "Speak"}
           >
-            <Text style={styles.micIcon}>{listening ? "■" : "🎤"}</Text>
+            <Text style={styles.micIcon}>{voice.listening ? "■" : "🎤"}</Text>
           </Pressable>
         )}
       </View>
-      <View style={styles.langRow}>
-        <Text style={styles.langLabel}>Voice:</Text>
-        {(["en-US", "ta-IN"] as Lang[]).map((l) => (
-          <Pressable key={l} onPress={() => setLang(l)} style={[styles.lang, lang === l && styles.langOn]}>
-            <Text style={[styles.langText, lang === l && styles.langTextOn]}>{l === "en-US" ? "English" : "தமிழ்"}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <LangPicker lang={lang} onChange={setLang} />
+    </View>
+  );
+}
+
+export function LangPicker({ lang, onChange }: { lang: VoiceLang; onChange: (l: VoiceLang) => void }) {
+  return (
+    <View style={styles.langRow}>
+      <Text style={styles.langLabel}>Voice:</Text>
+      {(["en-US", "ta-IN"] as VoiceLang[]).map((l) => (
+        <Pressable key={l} onPress={() => onChange(l)} style={[styles.lang, lang === l && styles.langOn]}>
+          <Text style={[styles.langText, lang === l && styles.langTextOn]}>{l === "en-US" ? "English" : "தமிழ்"}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }

@@ -22,6 +22,21 @@ data-build/  Script that builds app/assets/dict.db from open dictionary data
 Offline extras: Tamil → English word search, word-by-word meaning for sentences, voice input (needs the
 phone's offline speech pack), text-to-speech.
 
+## English Teacher tab
+
+Talk or type in English (or Tamil, or Tamil in English letters). Each message comes back with the
+corrected sentence, each mistake explained in Tamil, up to 3 other natural ways to say it, and the
+teacher's spoken reply with a question to keep you talking. Pick a situation to role-play (job
+interview, office meeting, phone call, shopping, doctor, travel) or just chat. Needs internet;
+the conversation is saved on the phone. Backend endpoint: `POST /api/chat`.
+
+## Updates
+
+Phones built with the `preview` profile get new app code over the air: every push to `main` runs
+`app/.eas/workflows/publish-update.yml`, which publishes an update to the `preview` channel, and the
+app shows "புதிய update தயார்" with a restart button. Only changes that add native modules need a new
+build from expo.dev.
+
 ## Backend (Vercel)
 
 Vercel project root directory: `backend`. Environment variables:
